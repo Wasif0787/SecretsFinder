@@ -211,6 +211,6 @@ app.post("/submit", function (req, res) {
     })
 })
 
-app.listen(3000, function () {
+app.listen(3000 || process.env.PORT, function () {
     console.log("Server started on port 3000");
 });
