@@ -34,9 +34,14 @@ mongoose.connect(`mongodb+srv://wasifhussain787:${password}@secrets.cumegie.mong
 const userSchema = new mongoose.Schema({
     email: String,
     password: String,
-    googleId: String
-    // secret: String
+    googleId: String,
+    username: {
+        type: String,
+        unique: true
+    }
 });
+
+
 
 const secretSchema = new mongoose.Schema({
     secret: String
@@ -72,11 +77,12 @@ passport.deserializeUser(function (user, cb) {
 passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
-    callbackURL: "https://secret-message-4uap.onrender.com/auth/google/secrets",
-    userProfileURL: 'https://www.googleapis.com/oauth2/v3/userinfo'
+    callbackURL: "http://localhost:3000/auth/google/secrets",
+    userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo"
 },
     function (accessToken, refreshToken, profile, cb) {
-        User.findOrCreate({ googleId: profile.id }, function (err, user) {
+        console.log(profile);
+        User.findOrCreate({ username: profile.emails[0].value, googleId: profile.id, }, function (err, user) {
             return cb(err, user);
         });
     }
@@ -87,8 +93,7 @@ app.get("/", function (req, res) {
 });
 
 app.get('/auth/google',
-    passport.authenticate('google', { scope: ['profile'] })
-);
+    passport.authenticate('google', { scope: ['profile', "email"] }));
 
 app.get('/auth/google/secrets',
     passport.authenticate('google', { failureRedirect: '/login' }),
@@ -151,14 +156,32 @@ app.post("/register", function (req, res) {
     //         res.render("secrets.ejs")
     //     })
     // });
+
+
+    // User.register({ username: req.body.username, active: false }, req.body.password, function (err, user) {
+    //     if (err) {
+    //         console.log(err);
+    //         res.redirect("/register")
+    //     } else {
+    //         passport.authenticate("local")(req, res, function () {
+    //             res.redirect("/secrets")
+    //         })
+    //     }
+    // });
+
     User.register({ username: req.body.username, active: false }, req.body.password, function (err, user) {
         if (err) {
-            console.log(err);
-            res.redirect("/register")
+            if (err.code === 11000 && err.keyPattern.username === 1) {
+                // Handle duplicate username error
+                res.render("register.ejs", { error: "Username is already taken." });
+            } else {
+                // Handle other registration errors
+                console.log(err);
+            }
         } else {
             passport.authenticate("local")(req, res, function () {
-                res.redirect("/secrets")
-            })
+                res.redirect("/secrets");
+            });
         }
     });
 })
@@ -177,9 +200,9 @@ app.get("/secrets", function (req, res) {
     //         res.render("secrets.ejs", { usersWithSecrets: foundUser })
     //     }
     // })
-    Secret.find({ "secret": { $ne: null } }).then((foundSecret)=>{
-        if(foundSecret){
-            res.render("secrets.ejs",{usersWithSecrets: foundSecret})
+    Secret.find({ "secret": { $ne: null } }).then((foundSecret) => {
+        if (foundSecret) {
+            res.render("secrets.ejs", { usersWithSecrets: foundSecret })
         }
     })
 })
@@ -203,14 +226,14 @@ app.post("/submit", function (req, res) {
     //     }
     // })
     const newSecret = new Secret({
-        secret : submittedSecret
+        secret: submittedSecret
     })
     console.log(newSecret);
-    newSecret.save().then(()=>{
+    newSecret.save().then(() => {
         res.redirect("/secrets")
     })
 })
 
-app.listen(3000 || process.env.PORT, function () {
+app.listen(3000, function () {
     console.log("Server started on port 3000");
 });
